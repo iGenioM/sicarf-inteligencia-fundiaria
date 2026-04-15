@@ -1157,27 +1157,22 @@ export function StepAcompanhamento() {
     {
       label: "Campanhas ativas",
       valor: "9",
-      borda: "border-l-sicarf-gray-800",
     },
     {
       label: "Processos abertos",
       valor: dados.kpiProcessosAbertos,
-      borda: "border-l-sicarf-blue",
     },
     {
       label: "Títulos emitidos",
       valor: dados.kpiTitulosEmitidosGeral,
-      borda: "border-l-sicarf-green",
     },
     {
       label: "Gargalos detectados",
       valor: "3",
-      borda: "border-l-sicarf-orange",
     },
     {
       label: "Aguardando CDI",
       valor: "306",
-      borda: "border-l-sicarf-red",
     },
     {
       label: "Taxa de conversão",
@@ -1185,7 +1180,6 @@ export function StepAcompanhamento() {
         dados.estadoId === "MA"
           ? dados.funilTextoBarra.match(/\d+%/)?.[0] ?? "91%"
           : "89%",
-      borda: "border-l-purple-600",
     },
   ] as const;
 
@@ -1333,7 +1327,6 @@ export function StepAcompanhamento() {
             key={k.label}
             value={k.valor}
             label={k.label}
-            className={`border-l-4 ${k.borda}`}
           />
         ))}
       </div>
