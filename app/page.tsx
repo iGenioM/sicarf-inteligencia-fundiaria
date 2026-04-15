@@ -1,5 +1,5 @@
-import { SicarfCorregedoria } from "@/components/SicarfCorregedoria";
+import { SicarfInteligenciaFundiaria } from "@/components/SicarfInteligenciaFundiaria";
 
 export default function Home() {
-  return <SicarfCorregedoria />;
+  return <SicarfInteligenciaFundiaria />;
 }

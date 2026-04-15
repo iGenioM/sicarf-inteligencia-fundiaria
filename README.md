@@ -1,4 +1,4 @@
-# SICARF — Corregedoria
+# SICARF — Inteligencia Fundiaria
 
 Painel web (Next.js) para dashboard de compliance e gestão/monitoramento de cartórios, com login por CPF e mapa de calor dos municípios do Pará (malhas IBGE).
 
