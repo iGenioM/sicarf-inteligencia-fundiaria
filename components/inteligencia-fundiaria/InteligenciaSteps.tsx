@@ -821,11 +821,13 @@ export function StepProjecao() {
   const modalidadesNormalizadas =
     parametrosProjecao.modalidadesSelecionadas.length > 0
       ? parametrosProjecao.modalidadesSelecionadas
-      : ["REURB", "RURAL", "QUILOMBOLA"];
+      : ["RURAL"];
 
   const linhasModalidade = useMemo(() => {
-    const base = dados.projecaoModalidades.filter((row) =>
-      modalidadesNormalizadas.includes(row.modalidade.trim().toUpperCase()),
+    const base = dados.projecaoModalidades.filter(
+      (row) =>
+        modalidadesNormalizadas.includes(row.modalidade.trim().toUpperCase()) &&
+        row.modalidade.trim().toUpperCase() === "RURAL",
     );
     if (base.length === 0) return [];
     const peso = 1 / base.length;
@@ -1144,45 +1146,24 @@ export function StepProjecao() {
         <div className="space-y-4">
           <PanelCard>
             <div className="mb-2 text-xs font-bold uppercase tracking-wide text-sicarf-gray-500">
-              Índice de viabilidade
+              Indicadores rurais-chave
             </div>
-            <div className="flex flex-col items-center">
-              <svg
-                viewBox="0 0 120 72"
-                className="mx-auto w-40 max-w-full"
-                aria-hidden
-              >
-                <path
-                  d="M 12 60 A 48 48 0 0 1 108 60"
-                  fill="none"
-                  stroke="#e2e8f0"
-                  strokeWidth="10"
-                  strokeLinecap="round"
-                />
-                <path
-                  d="M 12 60 A 48 48 0 0 1 108 60"
-                  fill="none"
-                  stroke="#1a9e6e"
-                  strokeWidth="10"
-                  strokeLinecap="round"
-                  strokeDasharray={`${(Number(dados.indiceViabilidadeReurb) / 100) * 151} 151`}
-                />
-              </svg>
-              <div className="-mt-6 text-center">
-                <div className="text-3xl font-bold text-sicarf-gray-800">
-                  {dados.indiceViabilidadeReurb}
-                </div>
-                <div className="mt-2">
-                  <Pill
-                    label={
-                      dados.estadoId === "MA"
-                        ? "Boa viabilidade — recomendada com ressalvas"
-                        : "Alta viabilidade — recomendada"
-                    }
-                    bg={S.greenLight}
-                    color={S.greenDark}
-                  />
-                </div>
+            <div className="space-y-2 text-[11px] text-sicarf-gray-700">
+              <div className="flex items-center justify-between">
+                <span>Município</span>
+                <strong>{parametrosProjecao.municipioSelecionado ?? "—"}</strong>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Previsão de títulos</span>
+                <strong>{previsaoTitulos.toLocaleString("pt-BR")}</strong>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Área regularizável</span>
+                <strong>{areaRegularizavelFmt} ha</strong>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Área por título (média)</span>
+                <strong>{areaPrevTitulosFmt} ha</strong>
               </div>
             </div>
           </PanelCard>
@@ -1284,7 +1265,65 @@ function RotuloMelhorCenario({ melhor }: { melhor: "A" | "B" | "C" }) {
 }
 
 export function StepComparar() {
-  const { dados } = useInteligenciaDemo();
+  const { dados, previsaoTitulos, parametrosProjecao } = useInteligenciaDemo();
+  const municipioBase = parametrosProjecao.municipioSelecionado ?? "Município selecionado";
+  const areaRegularizavelBase =
+    parametrosProjecao.areaRegularizavelHa ??
+    (Number(dados.areaRegularizavelHa.replace(/\D/g, "")) || 0);
+  const titulosProjetadosBase =
+    parametrosProjecao.titulosProjetados ??
+    (Number(dados.funilTitulosProj.replace(/\D/g, "")) || previsaoTitulos);
+  const areaPrevTitulos = areaRegularizavelBase / Math.max(1, previsaoTitulos);
+  const custoMedioNum = Number(dados.custoEstTitulo.replace(/[^\d]/g, "")) || 400;
+  const custoTotalBase = previsaoTitulos * custoMedioNum;
+
+  const cenariosDinamicos = [
+    {
+      variant: "A" as const,
+      titulo: "Cenário A",
+      alcance: `${municipioBase} — cobertura ampliada`,
+      municipios: 1,
+      tecnicos: 8,
+      dias: 30,
+      modalidades: "Rural",
+      badge: "Alternativa",
+      titulos: Math.round(previsaoTitulos * 1.3),
+      area: Math.round(areaRegularizavelBase * 1.3),
+      custoTotal: Math.round(custoTotalBase * 1.3),
+      conversao: 74,
+      score: 72,
+    },
+    {
+      variant: "B" as const,
+      titulo: "Cenário B",
+      alcance: `${municipioBase} — foco operacional`,
+      municipios: 1,
+      tecnicos: 6,
+      dias: 30,
+      modalidades: "Rural",
+      badge: "Recomendado",
+      titulos: previsaoTitulos,
+      area: Math.round(areaRegularizavelBase),
+      custoTotal: Math.round(custoTotalBase),
+      conversao: 78,
+      score: 81,
+    },
+    {
+      variant: "C" as const,
+      titulo: "Cenário C",
+      alcance: `${municipioBase} — conservador`,
+      municipios: 1,
+      tecnicos: 5,
+      dias: 30,
+      modalidades: "Rural",
+      badge: "Baixo risco",
+      titulos: Math.round(previsaoTitulos * 0.84),
+      area: Math.round(areaRegularizavelBase * 0.82),
+      custoTotal: Math.round(custoTotalBase * 0.93),
+      conversao: 70,
+      score: 68,
+    },
+  ];
 
   const headerCenario: Record<"A" | "B" | "C", string> = {
     A: "bg-sicarf-blue",
@@ -1295,17 +1334,87 @@ export function StepComparar() {
   const graficos = [
     {
       titulo: "Títulos projetados (escala relativa)",
-      valores: dados.graficoComparacaoTitulos,
+      valores: [
+        cenariosDinamicos[0].titulos,
+        cenariosDinamicos[1].titulos,
+        cenariosDinamicos[2].titulos,
+      ] as const,
     },
     {
       titulo: "Taxa de conversão (%)",
-      valores: dados.graficoComparacaoConversao,
+      valores: [
+        cenariosDinamicos[0].conversao,
+        cenariosDinamicos[1].conversao,
+        cenariosDinamicos[2].conversao,
+      ] as const,
     },
     {
-      titulo: "Índice de viabilidade geral",
-      valores: dados.graficoComparacaoViabilidade,
+      titulo: "Área de previsão de títulos (ha)",
+      valores: [
+        Math.round((cenariosDinamicos[0].area / Math.max(1, cenariosDinamicos[0].titulos)) * 100),
+        Math.round((cenariosDinamicos[1].area / Math.max(1, cenariosDinamicos[1].titulos)) * 100),
+        Math.round((cenariosDinamicos[2].area / Math.max(1, cenariosDinamicos[2].titulos)) * 100),
+      ] as const,
     },
   ] as const;
+  const matrizComparativa: Array<{
+    grupo?: string;
+    criterio: string;
+    cenA: string;
+    cenB: string;
+    cenC: string;
+    melhor: "A" | "B" | "C";
+    alertaAltoRiscoCenA?: boolean;
+  }> = [
+    {
+      criterio: "Município",
+      cenA: municipioBase,
+      cenB: municipioBase,
+      cenC: municipioBase,
+      melhor: "B",
+    },
+    {
+      criterio: "Previsão de títulos",
+      cenA: cenariosDinamicos[0].titulos.toLocaleString("pt-BR"),
+      cenB: cenariosDinamicos[1].titulos.toLocaleString("pt-BR"),
+      cenC: cenariosDinamicos[2].titulos.toLocaleString("pt-BR"),
+      melhor: "B",
+    },
+    {
+      criterio: "Área regularizável (ha)",
+      cenA: cenariosDinamicos[0].area.toLocaleString("pt-BR"),
+      cenB: cenariosDinamicos[1].area.toLocaleString("pt-BR"),
+      cenC: cenariosDinamicos[2].area.toLocaleString("pt-BR"),
+      melhor: "B",
+    },
+    {
+      criterio: "Área média por título (ha)",
+      cenA: (
+        cenariosDinamicos[0].area / Math.max(1, cenariosDinamicos[0].titulos)
+      ).toLocaleString("pt-BR", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }),
+      cenB: areaPrevTitulos.toLocaleString("pt-BR", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }),
+      cenC: (
+        cenariosDinamicos[2].area / Math.max(1, cenariosDinamicos[2].titulos)
+      ).toLocaleString("pt-BR", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }),
+      melhor: "B",
+    },
+    {
+      criterio: "Custo total estimado",
+      cenA: `R$ ${cenariosDinamicos[0].custoTotal.toLocaleString("pt-BR")}`,
+      cenB: `R$ ${cenariosDinamicos[1].custoTotal.toLocaleString("pt-BR")}`,
+      cenC: `R$ ${cenariosDinamicos[2].custoTotal.toLocaleString("pt-BR")}`,
+      melhor: "C",
+    },
+  ];
 
   return (
     <div className="space-y-4">
@@ -1318,7 +1427,7 @@ export function StepComparar() {
       <div className="grid gap-4 xl:grid-cols-[1fr_minmax(260px,300px)]">
         <div className="space-y-4">
           <div className="grid gap-3 md:grid-cols-3">
-            {dados.cenariosComparacaoCards.map((c) => (
+            {cenariosDinamicos.map((c) => (
               <div
                 key={c.variant}
                 className="overflow-hidden rounded-md border border-sicarf-gray-200 bg-white shadow-sm"
@@ -1398,7 +1507,7 @@ export function StepComparar() {
                   </tr>
                 </thead>
                 <tbody>
-                  {dados.matrizComparacao.map((linha, idx) => (
+                  {matrizComparativa.map((linha, idx) => (
                     <Fragment key={`${linha.criterio}-${idx}`}>
                       {linha.grupo ? (
                         <tr className="bg-sicarf-green-light/60">
@@ -1716,13 +1825,13 @@ export function StepAcompanhamento() {
     return (
       <div className="mt-4 space-y-4 border-t border-sicarf-gray-200 pt-4">
         <TabelaAcompanhamento
-          titulo="Processos REURB em andamento"
+          titulo="Processos RURAL em andamento"
           tituloClass="bg-sicarf-green-border"
           colunas={dados.acompColunasRural}
           linhas={dados.acompLinhasRural}
         />
         <TabelaAcompanhamento
-          titulo="Títulos emitidos — REURB"
+          titulo="Títulos emitidos — RURAL"
           tituloClass="bg-sicarf-green-dark"
           colunas={dados.acompColunasFinalizados}
           linhas={dados.acompLinhasFinalizados}
@@ -1751,13 +1860,13 @@ export function StepAcompanhamento() {
           <div className="flex flex-wrap gap-4 text-sicarf-gray-600">
             <span>
               <strong className="text-sicarf-gray-900">
-                Total em curso (REURB)
+                Total em curso (RURAL)
               </strong>{" "}
               {dados.acompRodapeTotalCurso}
             </span>
             <span>
               <strong className="text-sicarf-gray-900">
-                Títulos emitidos (REURB)
+                Títulos emitidos (RURAL)
               </strong>{" "}
               {dados.acompRodapeTitulosEmitidos}
             </span>
@@ -1828,8 +1937,8 @@ export function StepAcompanhamento() {
             defaultValue={dados.acompanhamentoTipoFiltroPadrao}
             aria-label="Tipo de processo"
           >
-            <option value="reurb">REURB</option>
-            <option value="todos">Todos (visão REURB)</option>
+            <option value="rural">RURAL</option>
+            <option value="todos">Todos (visão RURAL)</option>
           </FormSelect>
         </div>
         <div className="flex flex-wrap items-center gap-2">
