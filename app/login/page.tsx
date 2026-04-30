@@ -2,7 +2,7 @@ import { LoginForm } from "@/components/auth/LoginForm";
 
 export const metadata = {
   title: "Entrar — SICARF",
-  description: "Acesso ao sistema SICARF Painel de Inteligência de Fluxo",
+  description: "Acesso ao sistema SICARF Inteligencia Fundiaria",
 };
 
 export default function LoginPage() {

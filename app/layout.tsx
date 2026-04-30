@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "SICARF — Painel de Inteligência de Fluxo",
-  description: "Painel operacional para monitoramento de fluxo, gargalos e simulação",
+  title: "SICARF — Inteligência Fundiária",
+  description: "Simulador de campanha e acompanhamento de regularização fundiária",
 };
 
 export default function RootLayout({
