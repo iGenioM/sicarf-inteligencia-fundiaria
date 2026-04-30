@@ -37,17 +37,7 @@ import type {
   AcompanhamentoTabelaLinha,
   AlertaGargaloDemo,
   EquipeOperacionalDemo,
-  GlebaRow,
-  TipoGlebaDemo,
 } from "@/lib/inteligencia-fundiaria-dados";
-
-function badgeModalidade(m: GlebaRow["modalidade"]) {
-  if (m === "REURB")
-    return <Pill label="REURB" bg={S.greenLight} color={S.greenDark} />;
-  if (m === "RURAL")
-    return <Pill label="Rural" bg={S.blueBg} color={S.blue} />;
-  return <Pill label="Quilombola" bg="#ede7f6" color="#6a1b9a" />;
-}
 
 function diasNoIntervalo(dataInicio: string, dataFim: string): number {
   const a = new Date(`${dataInicio}T12:00:00`);
@@ -78,11 +68,105 @@ function TagsRitmoCampanha({
   );
 }
 
-function badgeAptidao(a: GlebaRow["aptidao"]) {
-  if (a === "Alta")
-    return <Pill label="Alta" bg={S.greenLight} color={S.greenDark} />;
-  return <Pill label="Média" bg={S.orangeBg} color={S.orange} />;
+type IndicadorMunicipioDemo = { ocupacoes: number; titulosProjetados: number };
+type ImovelElegivelRow = {
+  idImovel: string;
+  municipio: string;
+  codigoCar: string;
+  areaTotalHa: string;
+  statusCar: string;
+};
+type FaixaTamanhoImovel = {
+  faixa: string;
+  quantidade: number;
+};
+
+const INDICADORES_MA_POR_MUNICIPIO: Record<string, IndicadorMunicipioDemo> = {
+  "Alto Alegre do Pindaré": { ocupacoes: 3133, titulosProjetados: 3133 },
+  Barreirinhas: { ocupacoes: 6096, titulosProjetados: 6096 },
+  "Vargem Grande": { ocupacoes: 4859, titulosProjetados: 4859 },
+};
+const DISTRIBUICAO_TAMANHO_IMOVEIS: Record<string, FaixaTamanhoImovel[]> = {
+  "Vargem Grande": [
+    { faixa: "0 ha - 5 ha", quantidade: 2829 },
+    { faixa: "5 ha - 15 ha", quantidade: 1003 },
+    { faixa: "15 ha - 37 ha", quantidade: 706 },
+    { faixa: "37 ha - 67 ha", quantidade: 219 },
+    { faixa: "67 ha - 100 ha", quantidade: 102 },
+  ],
+  Barreirinhas: [
+    { faixa: "0 ha - 3 ha", quantidade: 4550 },
+    { faixa: "3 ha - 9 ha", quantidade: 784 },
+    { faixa: "9 ha - 24 ha", quantidade: 566 },
+    { faixa: "24 ha - 50 ha", quantidade: 107 },
+    { faixa: "50 ha - 100 ha", quantidade: 89 },
+  ],
+  "Alto Alegre do Pindaré": [
+    { faixa: "0 ha - 15 ha", quantidade: 696 },
+    { faixa: "15 ha - 36 ha", quantidade: 598 },
+    { faixa: "36 ha - 56 ha", quantidade: 710 },
+    { faixa: "56 ha - 77 ha", quantidade: 558 },
+    { faixa: "77 ha - 100 ha", quantidade: 571 },
+  ],
+};
+
+function estimarAreaRegularizavelHa(faixas: FaixaTamanhoImovel[]): number {
+  return faixas.reduce((acc, item) => {
+    const match = item.faixa.match(/(\d+)\s*ha\s*-\s*(\d+)\s*ha/i);
+    if (!match) return acc;
+    const minimo = Number(match[1]);
+    const maximo = Number(match[2]);
+    const mediaFaixa = (minimo + maximo) / 2;
+    return acc + mediaFaixa * item.quantidade;
+  }, 0);
 }
+
+function gerarImoveisDemo(
+  municipio: string,
+  prefixoIbge: string,
+  qtd: number,
+  inicioId: number,
+): ImovelElegivelRow[] {
+  const status: Array<ImovelElegivelRow["statusCar"]> = [
+    "Ativo",
+    "Análise",
+    "Pendente",
+  ];
+  return Array.from({ length: qtd }, (_, idx) => {
+    const idNum = inicioId + idx;
+    const area = (62 + ((idx * 17) % 180) + (idx % 3) * 0.37).toFixed(2);
+    const bloco1 = ((idNum * 37 + 11) >>> 0)
+      .toString(16)
+      .toUpperCase()
+      .padStart(8, "0");
+    const bloco2 = ((idNum * 53 + 7) >>> 0)
+      .toString(16)
+      .toUpperCase()
+      .padStart(8, "0");
+    const bloco3 = ((idNum * 97 + 19) >>> 0)
+      .toString(16)
+      .toUpperCase()
+      .padStart(8, "0");
+    const bloco4 = ((idNum * 131 + 23) >>> 0)
+      .toString(16)
+      .toUpperCase()
+      .padStart(8, "0");
+    const sufixoCar = `${bloco1}${bloco2}${bloco3}${bloco4}`;
+    return {
+      idImovel: `IMV-MA-${String(idNum).padStart(4, "0")}`,
+      municipio,
+      codigoCar: `MA-${prefixoIbge}-${sufixoCar}`,
+      areaTotalHa: area.replace(".", ","),
+      statusCar: status[idx % status.length],
+    };
+  });
+}
+
+const IMOVEIS_ELEGIVEIS_CAR_DEMO: ImovelElegivelRow[] = [
+  ...gerarImoveisDemo("Alto Alegre do Pindaré", "2100477", 24, 1),
+  ...gerarImoveisDemo("Barreirinhas", "2101707", 24, 1001),
+  ...gerarImoveisDemo("Vargem Grande", "2111201", 24, 2001),
+];
 
 /** Select com aparência de campo único; ao abrir, checkboxes permitem várias equipes. */
 function SelectMultiEquipes({
@@ -180,50 +264,41 @@ function SelectMultiEquipes({
 }
 
 export function StepParametros() {
-  const { dados, previsaoTitulos, setPrevisaoTitulos } = useInteligenciaDemo();
+  const { dados, previsaoTitulos, setPrevisaoTitulos, setParametrosProjecao } =
+    useInteligenciaDemo();
+  const dadosComRegiao = dados as typeof dados & {
+    municipiosPorRegiao?: Record<string, string[]>;
+  };
   const idRegiao = useId();
   const idMunicipio = useId();
-  const idTipoGleba = useId();
-  const idGlebaNome = useId();
   const idAreaMax = useId();
   const idFiltroAmbiental = useId();
   const idDataInicio = useId();
   const idDataFim = useId();
   const idProcDia = useId();
-  const idPrevisaoTitulos = useId();
-  const idProcessoColetivo = useId();
   const idEquipes = useId();
 
-  const [tipoGleba, setTipoGleba] = useState<TipoGlebaDemo>("estadual");
-  const [glebaNome, setGlebaNome] = useState(
-    () => dados.glebasPorTipoGleba.estadual[0] ?? "",
-  );
-  const [processoColetivo, setProcessoColetivo] = useState("");
-  const [equipesSel, setEquipesSel] = useState<Set<string>>(() => {
-    const s = new Set<string>();
-    dados.equipesOperacionais.forEach((e) => s.add(e.id));
-    return s;
-  });
+  const [equipesSel, setEquipesSel] = useState<Set<string>>(() => new Set());
+  const [regiaoSel, setRegiaoSel] = useState(dados.regioesSelect[0] ?? "");
+  const [municipioSel, setMunicipioSel] = useState(dados.municipiosSelect[0] ?? "");
+  const modalidadesPerfil = ["REURB", "RURAL", "Quilombola"] as const;
+  const [modalidadesSel, setModalidadesSel] = useState<Set<string>>(new Set());
   const [dataInicio, setDataInicio] = useState("2026-05-01");
   const [dataFim, setDataFim] = useState("2026-05-30");
+  const [paginaImoveis, setPaginaImoveis] = useState(1);
 
   useEffect(() => {
-    const opcoes = dados.glebasPorTipoGleba[tipoGleba];
-    if (!opcoes.length) return;
-    setGlebaNome((prev) => (opcoes.includes(prev) ? prev : opcoes[0]));
-  }, [tipoGleba, dados.glebasPorTipoGleba, dados.estadoId]);
-
-  useEffect(() => {
-    const s = new Set<string>();
-    dados.equipesOperacionais.forEach((e) => s.add(e.id));
-    setEquipesSel(s);
+    setEquipesSel(new Set());
   }, [dados.equipesOperacionais, dados.estadoId]);
 
   useEffect(() => {
-    setProcessoColetivo((p) =>
-      !p || dados.processosColetivosOpcoes.includes(p) ? p : "",
+    const primeiraRegiao = dados.regioesSelect[0] ?? "";
+    const municipiosDaPrimeira = dadosComRegiao.municipiosPorRegiao?.[primeiraRegiao];
+    setRegiaoSel(primeiraRegiao);
+    setMunicipioSel(
+      municipiosDaPrimeira?.[0] ?? dados.municipiosSelect[0] ?? "",
     );
-  }, [dados.processosColetivosOpcoes, dados.estadoId]);
+  }, [dados.estadoId, dados.regioesSelect, dados.municipiosSelect, dadosComRegiao.municipiosPorRegiao]);
 
   const dias = useMemo(
     () => diasNoIntervalo(dataInicio, dataFim),
@@ -247,8 +322,149 @@ export function StepParametros() {
     dados.kpiTitulosExibicao != null
       ? dados.kpiTitulosExibicao
       : titulosCalculados;
+  const indicadorMunicipio = INDICADORES_MA_POR_MUNICIPIO[municipioSel];
+  const ocupacoesPerfilTotal = indicadorMunicipio
+    ? indicadorMunicipio.ocupacoes.toLocaleString("pt-BR")
+    : dados.perfilBeneficiariosTotal;
+  const titulosProjetadosExibicao = indicadorMunicipio
+    ? indicadorMunicipio.titulosProjetados.toLocaleString("pt-BR")
+    : titulosKpi;
+  const titulosProjetadosValor = indicadorMunicipio
+    ? indicadorMunicipio.titulosProjetados
+    : titulosKpi;
+  const distribuicaoTamanhoAtual = DISTRIBUICAO_TAMANHO_IMOVEIS[municipioSel] ?? [];
+  const maxFaixaQuantidade = distribuicaoTamanhoAtual.reduce(
+    (acc, item) => Math.max(acc, item.quantidade),
+    1,
+  );
+  const areaRegularizavelCalculada = estimarAreaRegularizavelHa(
+    distribuicaoTamanhoAtual,
+  );
+  const areaRegularizavelExibicao =
+    areaRegularizavelCalculada > 0
+      ? areaRegularizavelCalculada.toLocaleString("pt-BR", {
+          maximumFractionDigits: 0,
+        })
+      : dados.areaRegularizavelHa;
+  const areaRegularizavelValor =
+    areaRegularizavelCalculada > 0
+      ? areaRegularizavelCalculada
+      : Number(dados.areaRegularizavelHa.replace(/\D/g, "")) || 0;
+  const ocupacoesTotalValor =
+    indicadorMunicipio?.ocupacoes ||
+    Number(dados.perfilBeneficiariosTotal.replace(/\D/g, "")) ||
+    0;
 
-  const opcoesGlebaAtual = dados.glebasPorTipoGleba[tipoGleba];
+  const municipiosDisponiveis = useMemo(() => {
+    const porRegiao = dadosComRegiao.municipiosPorRegiao?.[regiaoSel];
+    if (porRegiao?.length) return porRegiao;
+    return dados.municipiosSelect;
+  }, [dadosComRegiao.municipiosPorRegiao, dados.municipiosSelect, regiaoSel]);
+
+  useEffect(() => {
+    setMunicipioSel((atual) =>
+      municipiosDisponiveis.includes(atual)
+        ? atual
+        : (municipiosDisponiveis[0] ?? ""),
+    );
+  }, [municipiosDisponiveis]);
+
+  useEffect(() => {
+    setPaginaImoveis(1);
+  }, [municipioSel]);
+
+  useEffect(() => {
+    setPrevisaoTitulos(titulosCalculados);
+  }, [titulosCalculados, setPrevisaoTitulos]);
+
+  useEffect(() => {
+    const modalidadesSelecionadas = Array.from(modalidadesSel).map((m) =>
+      m.trim().toUpperCase(),
+    );
+    setParametrosProjecao({
+      municipioSelecionado: municipioSel || null,
+      titulosProjetados: titulosProjetadosValor || null,
+      ocupacoesTotal: ocupacoesTotalValor || null,
+      areaRegularizavelHa: areaRegularizavelValor || null,
+      modalidadesSelecionadas,
+    });
+  }, [
+    areaRegularizavelValor,
+    modalidadesSel,
+    municipioSel,
+    ocupacoesTotalValor,
+    setParametrosProjecao,
+    titulosProjetadosValor,
+  ]);
+
+  const fatiasPerfil = useMemo(() => {
+    function normalizarModalidade(valor: string): string {
+      return valor.trim().toUpperCase();
+    }
+    const selecionadasNormalizadas = new Set(
+      Array.from(modalidadesSel).map(normalizarModalidade),
+    );
+    if (!modalidadesSel.size) {
+      return dados.perfilBeneficiariosFatias.map((f) => ({ ...f, pct: 0 }));
+    }
+    const base = dados.perfilBeneficiariosFatias.filter((f) =>
+      selecionadasNormalizadas.has(normalizarModalidade(f.rotulo)),
+    );
+    if (base.length === 1) {
+      return dados.perfilBeneficiariosFatias.map((f) => ({
+        ...f,
+        pct: selecionadasNormalizadas.has(normalizarModalidade(f.rotulo))
+          ? 100
+          : 0,
+      }));
+    }
+    const somaBase = base.reduce((acc, f) => acc + f.pct, 0) || 1;
+    let acumulado = 0;
+    return dados.perfilBeneficiariosFatias.map((f, idx, arr) => {
+      if (!selecionadasNormalizadas.has(normalizarModalidade(f.rotulo))) {
+        return { ...f, pct: 0 };
+      }
+      const ehUltimaSelecionada =
+        arr
+          .slice(idx + 1)
+          .every(
+            (n) =>
+              !selecionadasNormalizadas.has(normalizarModalidade(n.rotulo)),
+          );
+      if (ehUltimaSelecionada) {
+        return { ...f, pct: Math.max(0, 100 - acumulado) };
+      }
+      const pct = Math.round((f.pct / somaBase) * 100);
+      acumulado += pct;
+      return { ...f, pct };
+    });
+  }, [dados.perfilBeneficiariosFatias, modalidadesSel]);
+
+  function alternarModalidadePerfil(modalidade: string) {
+    setModalidadesSel((prev) => {
+      const next = new Set(prev);
+      if (next.has(modalidade)) next.delete(modalidade);
+      else next.add(modalidade);
+      return next;
+    });
+  }
+
+  const imoveisFiltrados = useMemo(
+    () =>
+      IMOVEIS_ELEGIVEIS_CAR_DEMO.filter(
+        (imovel) => imovel.municipio === municipioSel,
+      ),
+    [municipioSel],
+  );
+  const IMOVEIS_POR_PAGINA = 10;
+  const totalPaginasImoveis = Math.max(
+    1,
+    Math.ceil(imoveisFiltrados.length / IMOVEIS_POR_PAGINA),
+  );
+  const paginaAtualImoveis = Math.min(paginaImoveis, totalPaginasImoveis);
+  const inicio = (paginaAtualImoveis - 1) * IMOVEIS_POR_PAGINA;
+  const fim = inicio + IMOVEIS_POR_PAGINA;
+  const imoveisPagina = imoveisFiltrados.slice(inicio, fim);
 
   return (
     <div className="space-y-4">
@@ -271,7 +487,11 @@ export function StepParametros() {
                 <FieldLabel htmlFor={idRegiao} obrigatorio>
                   Região / Mesorregião
                 </FieldLabel>
-                <FormSelect id={idRegiao} defaultValue={dados.regioesSelect[0]}>
+                <FormSelect
+                  id={idRegiao}
+                  value={regiaoSel}
+                  onChange={(e) => setRegiaoSel(e.target.value)}
+                >
                   {dados.regioesSelect.map((r) => (
                     <option key={r} value={r}>
                       {r}
@@ -285,62 +505,12 @@ export function StepParametros() {
                 </FieldLabel>
                 <FormSelect
                   id={idMunicipio}
-                  defaultValue={dados.municipiosSelect[0]}
+                  value={municipioSel}
+                  onChange={(e) => setMunicipioSel(e.target.value)}
                 >
-                  {dados.municipiosSelect.map((m) => (
+                  {municipiosDisponiveis.map((m: string) => (
                     <option key={m} value={m}>
                       {m}
-                    </option>
-                  ))}
-                </FormSelect>
-              </div>
-              <div>
-                <FieldLabel htmlFor={idTipoGleba} obrigatorio>
-                  Tipo de gleba
-                </FieldLabel>
-                <FormSelect
-                  id={idTipoGleba}
-                  value={tipoGleba}
-                  onChange={(e) =>
-                    setTipoGleba(e.target.value as TipoGlebaDemo)
-                  }
-                >
-                  <option value="municipal">Municipal</option>
-                  <option value="estadual">Estadual</option>
-                  <option value="federal">Federal</option>
-                </FormSelect>
-              </div>
-            </div>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <div className="sm:col-span-1">
-                <FieldLabel htmlFor={idGlebaNome} obrigatorio>
-                  Selecione a gleba
-                </FieldLabel>
-                <FormSelect
-                  id={idGlebaNome}
-                  value={glebaNome}
-                  onChange={(e) => setGlebaNome(e.target.value)}
-                >
-                  {opcoesGlebaAtual.map((g) => (
-                    <option key={g} value={g}>
-                      {g}
-                    </option>
-                  ))}
-                </FormSelect>
-              </div>
-              <div className="sm:col-span-1">
-                <FieldLabel htmlFor={idProcessoColetivo}>
-                  Processos coletivos (opcional)
-                </FieldLabel>
-                <FormSelect
-                  id={idProcessoColetivo}
-                  value={processoColetivo}
-                  onChange={(e) => setProcessoColetivo(e.target.value)}
-                >
-                  <option value="">Nenhum</option>
-                  {dados.processosColetivosOpcoes.map((p) => (
-                    <option key={p} value={p}>
-                      {p}
                     </option>
                   ))}
                 </FormSelect>
@@ -353,19 +523,24 @@ export function StepParametros() {
               2. Perfil do beneficiário e modalidade
             </div>
             <div className="flex flex-wrap gap-2">
-              {(["REURB", "RURAL", "Quilombola"] as const).map((t, i) => (
-                <span
+              {modalidadesPerfil.map((t) => (
+                <button
                   key={t}
-                  className={`cursor-pointer rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
-                    i === 0
-                      ? "border-sicarf-green-dark bg-sicarf-green-light text-sicarf-green-dark"
-                      : i === 1
-                        ? "border-sicarf-blue bg-sicarf-blue/10 text-sicarf-blue"
-                        : "border-sicarf-gray-200 bg-sicarf-gray-50 text-sicarf-gray-700"
+                  type="button"
+                  onClick={() => alternarModalidadePerfil(t)}
+                  aria-pressed={modalidadesSel.has(t)}
+                  className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                    modalidadesSel.has(t)
+                      ? t === "REURB"
+                        ? "border-sicarf-green-dark bg-sicarf-green-light text-sicarf-green-dark"
+                        : t === "RURAL"
+                          ? "border-sicarf-blue bg-sicarf-blue/10 text-sicarf-blue"
+                          : "border-purple-700 bg-purple-100 text-purple-700"
+                      : "border-sicarf-gray-200 bg-sicarf-gray-50 text-sicarf-gray-700 hover:bg-sicarf-gray-100"
                   }`}
                 >
                   {t}
-                </span>
+                </button>
               ))}
             </div>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -376,7 +551,7 @@ export function StepParametros() {
                 <FormTextInput
                   id={idAreaMax}
                   type="number"
-                  defaultValue={500}
+                  defaultValue={100}
                 />
               </div>
               <div>
@@ -398,8 +573,8 @@ export function StepParametros() {
               3. Capacidade operacional da equipe
             </div>
             <div className="flex w-full flex-col gap-3">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
-                <div className="min-w-0 sm:col-span-2 lg:col-span-1">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="min-w-0">
                   <FieldLabel htmlFor={idEquipes} obrigatorio>
                     Equipes
                   </FieldLabel>
@@ -408,6 +583,26 @@ export function StepParametros() {
                     equipes={dados.equipesOperacionais}
                     selecionados={equipesSel}
                     onChange={setEquipesSel}
+                  />
+                </div>
+                <div className="min-w-0">
+                  <FieldLabel htmlFor={idProcDia}>
+                    Processos/dia
+                  </FieldLabel>
+                  <FormTextInput
+                    id={idProcDia}
+                    readOnly
+                    tabIndex={-1}
+                    aria-readonly
+                    className="bg-sicarf-gray-50"
+                    value={
+                      processosPorDiaAgregado > 0
+                        ? processosPorDiaAgregado.toLocaleString("pt-BR", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })
+                        : "—"
+                    }
                   />
                 </div>
                 <div className="min-w-0">
@@ -433,42 +628,6 @@ export function StepParametros() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="min-w-0">
-                  <FieldLabel htmlFor={idProcDia}>
-                    Processos/dia (equipes selecionadas)
-                  </FieldLabel>
-                  <FormTextInput
-                    id={idProcDia}
-                    readOnly
-                    tabIndex={-1}
-                    aria-readonly
-                    className="bg-sicarf-gray-50"
-                    value={
-                      processosPorDiaAgregado > 0
-                        ? processosPorDiaAgregado.toLocaleString("pt-BR", {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })
-                        : "—"
-                    }
-                  />
-                </div>
-                <div className="min-w-0">
-                  <FieldLabel htmlFor={idPrevisaoTitulos} obrigatorio>
-                    Previsão de títulos
-                  </FieldLabel>
-                  <FormTextInput
-                    id={idPrevisaoTitulos}
-                    type="number"
-                    min={0}
-                    value={previsaoTitulos}
-                    onChange={(e) =>
-                      setPrevisaoTitulos(Number(e.target.value) || 0)
-                    }
-                  />
-                </div>
-              </div>
             </div>
           </PanelCard>
 
@@ -477,7 +636,7 @@ export function StepParametros() {
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <MetricCard
-              value={titulosKpi}
+              value={titulosProjetadosExibicao}
               label="Títulos projetados"
             />
             <MetricCard
@@ -485,7 +644,7 @@ export function StepParametros() {
               label="Previsão de títulos"
             />
             <MetricCard
-              value={dados.areaRegularizavelHa}
+              value={areaRegularizavelExibicao}
               label="Área regularizável (ha)"
             />
             <MetricCard
@@ -497,7 +656,7 @@ export function StepParametros() {
           <PanelCard>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs font-bold uppercase tracking-wide text-sicarf-gray-500">
-                Glebas elegíveis identificadas
+                Imóveis elegíveis (CAR)
               </span>
               <div className="flex gap-2">
                 <button
@@ -516,54 +675,84 @@ export function StepParametros() {
             </div>
             <Tabela
               colunas={[
-                "Gleba",
+                "Imóvel",
                 "Município",
-                "Área disp. (ha)",
-                "Ocupações",
-                "Modalidade",
-                "Restrições",
-                "Aptidão",
+                "Código CAR",
+                "Área total (ha)",
+                "Status CAR",
               ]}
-              linhas={dados.docGlebas}
-              renderLinha={(g) => (
+              linhas={imoveisPagina}
+              renderLinha={(imovel) => (
                 <>
                   <Td>
-                    <strong>{g.gleba}</strong>
+                    <strong>{imovel.idImovel}</strong>
                   </Td>
-                  <Td>{g.municipio}</Td>
-                  <Td>{g.area}</Td>
-                  <Td>{g.ocupacoes}</Td>
-                  <Td>{badgeModalidade(g.modalidade)}</Td>
-                  <Td>{g.restricoes}</Td>
-                  <Td>{badgeAptidao(g.aptidao)}</Td>
+                  <Td>{imovel.municipio}</Td>
+                  <Td>{imovel.codigoCar}</Td>
+                  <Td>{imovel.areaTotalHa}</Td>
+                  <Td>{imovel.statusCar}</Td>
                 </>
               )}
             />
+            <div className="mt-3 flex items-center justify-between">
+              <span className="text-[11px] text-sicarf-gray-500">
+                Página {paginaAtualImoveis} de {totalPaginasImoveis}
+              </span>
+              <div className="flex gap-1.5">
+                {Array.from({ length: totalPaginasImoveis }, (_, i) => i + 1).map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setPaginaImoveis(p)}
+                    className={`rounded border px-2 py-1 text-[11px] font-semibold ${
+                      paginaAtualImoveis === p
+                        ? "border-sicarf-green bg-sicarf-green text-white"
+                        : "border-sicarf-gray-200 bg-white text-sicarf-gray-700 hover:bg-sicarf-gray-50"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </div>
           </PanelCard>
         </div>
 
         <div className="space-y-4">
           <PainelPerfilBeneficiarios
-            total={dados.perfilBeneficiariosTotal}
-            fatias={dados.perfilBeneficiariosFatias}
+            total={ocupacoesPerfilTotal}
+            fatias={fatiasPerfil}
           />
           <PanelCard>
-            <div className="mb-2 text-xs font-bold uppercase tracking-wide text-sicarf-gray-500">
-              Alertas
+            <div className="mb-3 border-b border-sicarf-gray-200 pb-3 text-xs font-bold uppercase tracking-wide text-sicarf-gray-500">
+              Distribuição do tamanho dos imóveis
             </div>
-            <ul className="space-y-2 text-[11px] leading-relaxed">
-              <li className="rounded border-l-4 border-sicarf-green bg-sicarf-green-light/80 px-2 py-1.5 text-sicarf-green-dark">
-                <strong>EMATER presente</strong> — {dados.ematerTecnicosTexto}{" "}
-                técnicos no município.
-              </li>
-              <li className="rounded border-l-4 border-sicarf-orange bg-sicarf-orange-bg px-2 py-1.5 text-sicarf-orange">
-                <strong>Passivo ambiental</strong> em parte da{" "}
-                {dados.alertaGlebaNome}.
-              </li>
-              <li className="rounded border-l-4 border-sicarf-red bg-sicarf-red-bg px-2 py-1.5 text-sicarf-red">
-                <strong>Sobreposição SIGEF</strong> — verificar com INCRA.
-              </li>
-            </ul>
+            <div className="mb-2 text-[11px] font-semibold text-sicarf-gray-700">
+              {municipioSel}
+            </div>
+            <div className="space-y-2.5">
+              {distribuicaoTamanhoAtual.map((item) => (
+                <div key={item.faixa}>
+                  <div className="mb-1 flex items-center justify-between gap-2 text-[11px]">
+                    <span className="text-sicarf-gray-700">{item.faixa}</span>
+                    <span className="font-semibold text-sicarf-gray-800">
+                      {item.quantidade.toLocaleString("pt-BR")} imóveis
+                    </span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-sicarf-gray-200">
+                    <div
+                      className="h-full rounded-full bg-sicarf-blue"
+                      style={{
+                        width: `${Math.max(
+                          6,
+                          Math.round((item.quantidade / maxFaixaQuantidade) * 100),
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
           </PanelCard>
         </div>
       </div>
@@ -604,64 +793,142 @@ function IndicadorTendencia({
 }
 
 export function StepProjecao() {
-  const { dados, previsaoTitulos } = useInteligenciaDemo();
+  const { dados, previsaoTitulos, parametrosProjecao } = useInteligenciaDemo();
   const [perfilCronograma, setPerfilCronograma] = useState<
     "otimista" | "realista" | "conservador"
   >("otimista");
+  const titulosProjetadosValor =
+    parametrosProjecao.titulosProjetados ??
+    (Number(dados.funilTitulosProj.replace(/\D/g, "")) || 0);
+  const ocupacoesTotalValor =
+    parametrosProjecao.ocupacoesTotal ??
+    (Number(dados.ocupacoesIdentificadas.replace(/\D/g, "")) || 1);
+  const areaRegularizavelValor =
+    parametrosProjecao.areaRegularizavelHa ??
+    (Number(dados.areaRegularizavelHa.replace(/\D/g, "")) || 0);
+  const titulosProjetadosFmt = titulosProjetadosValor.toLocaleString("pt-BR");
+  const ocupacoesTotalFmt = ocupacoesTotalValor.toLocaleString("pt-BR");
+  const areaRegularizavelFmt = areaRegularizavelValor.toLocaleString("pt-BR", {
+    maximumFractionDigits: 0,
+  });
+  const areaPrevTitulosHa = areaRegularizavelValor / Math.max(1, previsaoTitulos);
+  const areaPrevTitulosFmt = areaPrevTitulosHa.toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  const carAtivoQtd = Math.round(ocupacoesTotalValor * 0.78);
+  const sobreposicaoCriticaQtd = Math.round(ocupacoesTotalValor * 0.14);
+  const modalidadesNormalizadas =
+    parametrosProjecao.modalidadesSelecionadas.length > 0
+      ? parametrosProjecao.modalidadesSelecionadas
+      : ["REURB", "RURAL", "QUILOMBOLA"];
+
+  const linhasModalidade = useMemo(() => {
+    const base = dados.projecaoModalidades.filter((row) =>
+      modalidadesNormalizadas.includes(row.modalidade.trim().toUpperCase()),
+    );
+    if (base.length === 0) return [];
+    const peso = 1 / base.length;
+    return base.map((row) => {
+      const processos = Math.round(previsaoTitulos * peso);
+      const area = areaRegularizavelValor * peso;
+      const pctTotal = Math.round(
+        (processos / Math.max(1, previsaoTitulos)) * 100,
+      );
+      const conversaoPct = Math.round(
+        (processos / Math.max(1, titulosProjetadosValor)) * 100,
+      );
+      return {
+        ...row,
+        processos: processos.toLocaleString("pt-BR"),
+        areaHa: area.toLocaleString("pt-BR", { maximumFractionDigits: 0 }),
+        pctTotal: `${pctTotal}%`,
+        conversaoPct,
+      };
+    });
+  }, [
+    areaRegularizavelValor,
+    dados.projecaoModalidades,
+    modalidadesNormalizadas,
+    previsaoTitulos,
+    titulosProjetadosValor,
+  ]);
+
+  const cronogramaSemanasCalc = useMemo(() => {
+    const pesos = [0.14, 0.24, 0.27, 0.35];
+    const fases = [
+      {
+        semana: "Semana 1",
+        fase: "Triagem e priorização",
+        barClass: "bg-sicarf-green",
+      },
+      {
+        semana: "Semana 2",
+        fase: "Validação CAR e georreferência",
+        barClass: "bg-sicarf-green-dark",
+      },
+      {
+        semana: "Semana 3",
+        fase: "Análise jurídica e saneamento",
+        barClass: "bg-sicarf-green-border",
+      },
+      {
+        semana: "Semana 4",
+        fase: "Emissão de títulos",
+        barClass: "bg-sicarf-orange",
+      },
+    ];
+    return fases.map((f, idx) => {
+      const qtd = Math.round(previsaoTitulos * pesos[idx]);
+      return {
+        ...f,
+        larguraPct: Math.max(
+          18,
+          Math.round((qtd / Math.max(1, previsaoTitulos)) * 100),
+        ),
+        processosOuTitulos: `${qtd.toLocaleString("pt-BR")} ${
+          idx === 3 ? "títulos" : "proc."
+        }`,
+      };
+    });
+  }, [previsaoTitulos]);
 
   const funilSegmentos = useMemo(() => {
-    const o = Number(dados.ocupacoesIdentificadas.replace(/\D/g, "")) || 1;
+    const o = ocupacoesTotalValor || 1;
     return [
       {
-        rotulo: "Ocupações identificadas",
-        valor: dados.ocupacoesIdentificadas,
+        rotulo: "Áreas identificadas",
+        valor: ocupacoesTotalFmt,
         pct: 1,
         cor: "bg-sicarf-blue",
         textoCor: "text-white",
       },
       {
-        rotulo: "Elegíveis para regularização",
-        valor: dados.funilElegiveis,
-        pct: Number(dados.funilElegiveis.replace(/\D/g, "")) / o,
-        cor: "bg-sicarf-blue-light",
-        textoCor: "text-sicarf-gray-800",
-      },
-      {
         rotulo: "Com CAR ativo",
-        valor: dados.funilCarAtivo,
-        pct: Number(dados.funilCarAtivo.replace(/\D/g, "")) / o,
+        valor: carAtivoQtd.toLocaleString("pt-BR"),
+        pct: carAtivoQtd / o,
         cor: "bg-sicarf-green",
         textoCor: "text-white",
       },
       {
-        rotulo: "Sem sobreposição crítica",
-        valor: dados.funilSemSobreposicao,
-        pct: Number(dados.funilSemSobreposicao.replace(/\D/g, "")) / o,
-        cor: "bg-sicarf-green-dark",
-        textoCor: "text-white",
-      },
-      {
-        rotulo: "Análise automática aprovada",
-        valor: dados.funilAnaliseAuto,
-        pct: Number(dados.funilAnaliseAuto.replace(/\D/g, "")) / o,
-        cor: "bg-sicarf-green-light",
-        textoCor: "text-sicarf-green-dark",
-      },
-      {
-        rotulo: "Títulos emitidos (proj.)",
-        valor: dados.funilTextoBarra,
-        pct: Number(dados.funilTitulosProj.replace(/\D/g, "")) / o,
-        cor: "bg-sicarf-orange",
+        rotulo: "Com sobreposição crítica",
+        valor: sobreposicaoCriticaQtd.toLocaleString("pt-BR"),
+        pct: sobreposicaoCriticaQtd / o,
+        cor: "bg-sicarf-red",
         textoCor: "text-white",
       },
     ];
-  }, [dados]);
+  }, [carAtivoQtd, ocupacoesTotalFmt, ocupacoesTotalValor, sobreposicaoCriticaQtd]);
 
   const historicoRegiaoBarras = [42, 48, 55, 62, 78];
 
   return (
     <div className="space-y-4">
-      <SecTitle icon={LineChart}>{dados.projecaoTituloCampanha}</SecTitle>
+      <SecTitle icon={LineChart}>
+        {parametrosProjecao.municipioSelecionado
+          ? `Projeção de resultados — ${parametrosProjecao.municipioSelecionado}`
+          : dados.projecaoTituloCampanha}
+      </SecTitle>
       <SubDesc>
         Visualize o cronograma de produção, o funil de conversão e a projeção
         por modalidade conforme os parâmetros da campanha.
@@ -671,7 +938,7 @@ export function StepProjecao() {
         <MetricCard
           value={
             <span className="inline-flex items-center justify-center gap-1">
-              {dados.funilTitulosProj}
+              {titulosProjetadosFmt}
             </span>
           }
           label="Títulos projetados"
@@ -687,7 +954,7 @@ export function StepProjecao() {
         <MetricCard
           value={
             <span className="inline-flex items-center justify-center gap-1">
-              {dados.areaRegularizavelHa}
+              {areaRegularizavelFmt}
               <IndicadorTendencia tipo="alta-verde" />
             </span>
           }
@@ -705,11 +972,11 @@ export function StepProjecao() {
         <MetricCard
           value={
             <span className="inline-flex items-center justify-center gap-1">
-              {dados.areaTituladaProjHa}
+              {areaPrevTitulosFmt}
               <IndicadorTendencia tipo="alta-verde-2" />
             </span>
           }
-          label="Área titulada proj. (ha)"
+          label="Área de previsão de títulos (ha)"
         />
         <MetricCard
           value={
@@ -753,7 +1020,7 @@ export function StepProjecao() {
               </div>
             </div>
             <div className="space-y-2.5">
-              {dados.cronogramaSemanas.map((s) => (
+              {cronogramaSemanasCalc.map((s) => (
                 <div
                   key={s.semana + s.fase}
                   className="flex flex-wrap items-center gap-2 sm:flex-nowrap"
@@ -831,7 +1098,7 @@ export function StepProjecao() {
                   </tr>
                 </thead>
                 <tbody>
-                  {dados.projecaoModalidades.map((row, i) => (
+                  {linhasModalidade.map((row, i) => (
                     <tr
                       key={row.modalidade}
                       className={

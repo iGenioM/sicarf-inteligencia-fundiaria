@@ -16,6 +16,14 @@ import {
 } from "@/lib/inteligencia-fundiaria-dados";
 import { readRegiaoDemoCookie } from "@/lib/inteligencia-regiao-login";
 
+export interface ParametrosProjecaoState {
+  municipioSelecionado: string | null;
+  titulosProjetados: number | null;
+  ocupacoesTotal: number | null;
+  areaRegularizavelHa: number | null;
+  modalidadesSelecionadas: string[];
+}
+
 interface InteligenciaDemoContextValue {
   estadoAtivo: EstadoAtivoGlobal;
   /** Último dígito do CPF do login não é 0 nem 1 */
@@ -24,6 +32,8 @@ interface InteligenciaDemoContextValue {
   /** Previsão informada em Parâmetros; exibida na projeção estimada e na etapa Projeção */
   previsaoTitulos: number;
   setPrevisaoTitulos: (v: number) => void;
+  parametrosProjecao: ParametrosProjecaoState;
+  setParametrosProjecao: (v: ParametrosProjecaoState) => void;
 }
 
 const Ctx = createContext<InteligenciaDemoContextValue | null>(null);
@@ -40,6 +50,14 @@ export function InteligenciaDemoProvider({ children }: { children: ReactNode }) 
   const [previsaoTitulos, setPrevisaoTitulos] = useState(
     DADOS_PA.previsaoTitulosPadrao,
   );
+  const [parametrosProjecao, setParametrosProjecao] =
+    useState<ParametrosProjecaoState>({
+      municipioSelecionado: null,
+      titulosProjetados: null,
+      ocupacoesTotal: null,
+      areaRegularizavelHa: null,
+      modalidadesSelecionadas: [],
+    });
 
   useLayoutEffect(() => {
     setEstadoAtivo(estadoInicialDoCookie());
@@ -55,6 +73,13 @@ export function InteligenciaDemoProvider({ children }: { children: ReactNode }) 
 
   useLayoutEffect(() => {
     setPrevisaoTitulos(dados.previsaoTitulosPadrao);
+    setParametrosProjecao({
+      municipioSelecionado: null,
+      titulosProjetados: null,
+      ocupacoesTotal: null,
+      areaRegularizavelHa: null,
+      modalidadesSelecionadas: [],
+    });
   }, [dados.previsaoTitulosPadrao, dados.estadoId]);
 
   useLayoutEffect(() => {
@@ -69,8 +94,10 @@ export function InteligenciaDemoProvider({ children }: { children: ReactNode }) 
       dados,
       previsaoTitulos,
       setPrevisaoTitulos,
+      parametrosProjecao,
+      setParametrosProjecao,
     }),
-    [estadoAtivo, invalido, dados, previsaoTitulos],
+    [estadoAtivo, invalido, dados, previsaoTitulos, parametrosProjecao],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
